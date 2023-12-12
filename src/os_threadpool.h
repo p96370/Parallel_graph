@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 
 #ifndef __OS_THREADPOOL_H__
-#define __OS_THREADPOOL_H__	1
+#define __OS_THREADPOOL_H__ 1
 
 #include <pthread.h>
 #include "os_list.h"
@@ -26,8 +26,14 @@ typedef struct os_threadpool {
 	 */
 	os_list_node_t head;
 
-	/* TODO: Define threapool / queue synchronization data. */
+	// used for synchronization
+	pthread_mutex_t mutex;
+	pthread_cond_t condition;
+	int stop_flag;
+
 } os_threadpool_t;
+
+int processingIsDone();
 
 os_task_t *create_task(void (*f)(void *), void *arg, void (*destroy_arg)(void *));
 void destroy_task(os_task_t *t);

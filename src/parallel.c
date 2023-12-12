@@ -11,18 +11,45 @@
 #include "log/log.h"
 #include "utils.h"
 
-#define NUM_THREADS		4
+#define NUM_THREADS 4
 
-static int sum;
+int sum;
 static os_graph_t *graph;
 static os_threadpool_t *tp;
-/* TODO: Define graph synchronization mechanisms. */
+static pthread_mutex_t graph_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/* TODO: Define graph task argument. */
+typedef struct {
+	unsigned int index;
+} graph_task_arg_t;
 
 static void process_node(unsigned int idx)
 {
-	/* TODO: Implement thread-pool based processing of graph. */
+	pthread_mutex_lock(&graph_mutex);
+
+	if (graph->visited[idx] == NOT_VISITED) {
+		graph->visited[idx] = PROCESSING;
+		os_node_t *node = graph->nodes[idx];
+
+		pthread_mutex_unlock(&graph_mutex);
+
+		for (unsigned int i = 0; i < node->num_neighbours; i++)
+			process_node(node->neighbours[i]);
+
+		pthread_mutex_lock(&graph_mutex);
+		graph->visited[idx] = DONE;
+		sum += node->info;
+		pthread_mutex_unlock(&graph_mutex);
+	} else {
+		pthread_mutex_unlock(&graph_mutex);
+	}
+}
+
+static void graph_task(void *arg)
+{
+	graph_task_arg_t *task_arg = (graph_task_arg_t *)arg;
+
+	process_node(task_arg->index);
+	free(arg);
 }
 
 int main(int argc, char *argv[])
@@ -39,11 +66,16 @@ int main(int argc, char *argv[])
 
 	graph = create_graph_from_file(input_file);
 
-	/* TODO: Initialize graph synchronization mechanisms. */
 	tp = create_threadpool(NUM_THREADS);
-	process_node(0);
+
+	pthread_mutex_init(&graph_mutex, NULL);
+
+	enqueue_task(tp, create_task(graph_task, &(graph->nodes[0]->id), NULL));
+
 	wait_for_completion(tp);
 	destroy_threadpool(tp);
+
+	pthread_mutex_destroy(&graph_mutex);
 
 	printf("%d", sum);
 
